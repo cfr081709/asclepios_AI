@@ -1,8 +1,0 @@
-kagglehub
-pandas
-torch
-transformers
-trl
-peft
-datasets
-bitsandbytes

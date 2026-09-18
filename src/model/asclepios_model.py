@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import torch
 from pathlib import Path
@@ -266,7 +267,6 @@ def get_model_response(
     if contains_crisis_language(text):
         return CRISIS_RESPONSE
 
-    # 2. Build a proper chat-formatted prompt.
     prompt = build_prompt(tokenizer, text, system_prompt)
     inputs = tokenizer(prompt, return_tensors="pt", add_special_tokens=False)
     inputs = {k: v.to(model.device) for k, v in inputs.items()}
@@ -290,7 +290,6 @@ def get_model_response(
     new_tokens = output_ids[0][input_len:]
     response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
 
-    # 3. Guard against repetition-loop degeneration.
     if is_degenerate_repetition(response):
         return DEGENERATE_RESPONSE
 
@@ -318,12 +317,13 @@ def run_repl(model, tokenizer):
 
 
 if __name__ == "__main__":
-    PRIMARY_PATH = "/home/christianrafferty/Documents/projects/asclepios_ai/models/asclepios_models/asclepios_lora"
-    FALLBACK_PATH = "/home/christianrafferty/Documents/projects/asclepios_ai/models/asclepios_model"
-    BASE_MODEL_NAME = None
+    PROJECT_ROOT = Path(__file__).resolve().parents[2]
+    PRIMARY_PATH = Path(os.getenv("ASCLEPIOS_LORA_PATH", PROJECT_ROOT / "models" / "asclepios_lora"))
+    FALLBACK_PATH = Path(os.getenv("ASCLEPIOS_MODEL_PATH", PROJECT_ROOT / "models" / "asclepios_model"))
+    BASE_MODEL_NAME = os.getenv("ASCLEPIOS_BASE_MODEL_NAME")
 
     local_model, local_tokenizer = load_model_with_fallback(
-        PRIMARY_PATH, FALLBACK_PATH, base_model_name=BASE_MODEL_NAME
+        str(PRIMARY_PATH), str(FALLBACK_PATH), base_model_name=BASE_MODEL_NAME
     )
     describe_model(local_model)
     run_repl(local_model, local_tokenizer)

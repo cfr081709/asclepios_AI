@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Asclepios AI</title>
+    <link rel="stylesheet" href="stylesheet.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Medical guidance assistant</p>
+          <h1>Asclepios AI</h1>
+        </div>
+      </header>
+
+      <main class="chat-layout">
+        <section class="panel intro-panel">
+          <h2>How this works</h2>
+          <p>
+            Ask general health questions, wellness questions, or symptom concerns.
+            The assistant offers general information and encourages professional care
+            for serious or urgent situations.
+          </p>
+          <div class="disclaimer">
+            This is not a diagnosis and should not replace a clinician.
+          </div>
+        </section>
+
+        <section class="panel chat-panel">
+          <div id="chatLog" class="chat-log" aria-live="polite">
+            <div class="message bot">
+              <span class="label">Asclepios</span>
+              <p>Hello. I can answer general health questions. Describe your concern and I will respond with supportive, non-diagnostic guidance.</p>
+            </div>
+          </div>
+
+          <form id="chatForm" class="chat-form">
+            <label class="sr-only" for="messageInput">Message</label>
+            <input
+              id="messageInput"
+              name="message"
+              type="text"
+              placeholder="Type your question here..."
+              autocomplete="off"
+              required
+            />
+            <button type="submit">Send</button>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const chatLog = document.getElementById('chatLog');
+      const chatForm = document.getElementById('chatForm');
+      const messageInput = document.getElementById('messageInput');
+
+      function addMessage(role, text) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `message ${role}`;
+
+        const label = document.createElement('span');
+        label.className = 'label';
+        label.textContent = role === 'user' ? 'You' : 'Asclepios';
+
+        const content = document.createElement('p');
+        content.textContent = text;
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(content);
+        chatLog.appendChild(wrapper);
+        chatLog.scrollTop = chatLog.scrollHeight;
+      }
+
+      async function sendMessage(event) {
+        event.preventDefault();
+
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        addMessage('user', text);
+        messageInput.value = '';
+        messageInput.disabled = true;
+
+        const submitButton = chatForm.querySelector('button');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Sending...';
+
+        try {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text })
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Request failed');
+          }
+
+          addMessage('bot', data.reply || 'I could not generate a response right now.');
+        } catch (error) {
+          addMessage('bot', 'The service is temporarily unavailable. Please try again in a moment.');
+        } finally {
+          messageInput.disabled = false;
+          submitButton.disabled = false;
+          submitButton.textContent = 'Send';
+          messageInput.focus();
+        }
+      }
+
+      chatForm.addEventListener('submit', sendMessage);
+    </script>
+  </body>
+</html>
+

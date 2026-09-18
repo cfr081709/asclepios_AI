@@ -3,6 +3,3 @@ __pycache__/
 *.pyc
 data/
 models/
-*.pt
-*.onnx
-*.ckpt

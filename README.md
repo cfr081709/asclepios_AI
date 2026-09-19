@@ -73,6 +73,7 @@ export ASCLEPIOS_LORA_PATH="$PWD/models/asclepios_lora"
 export ASCLEPIOS_DATA_DIR="$PWD/data"
 export PORT=8000
 export ASCLEPIOS_MODEL_PORT=8001
+export ASCLEPIOS_ENABLE_MODEL=true
 ```
 
 A sample file is included at `.env.example`.
@@ -94,6 +95,12 @@ http://localhost:8000
 The Node server owns port `8000` and starts the Python model service on internal
 port `8001`. Do not open the model-service port directly. Run `server.py` alone
 only when debugging the Python service; it defaults to port `8000`.
+
+The app tries the configured local model first and uses the built-in
+medical-information fallback only if model loading or generation fails. The LoRA
+adapter also loads its large base model into memory, so set
+`ASCLEPIOS_ENABLE_MODEL=false` only when you intentionally want fallback-only
+behavior.
 
 ## Notes
 

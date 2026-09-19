@@ -12,12 +12,45 @@ MODEL_DIR = Path(os.getenv('ASCLEPIOS_MODEL_DIR', ROOT_DIR / 'models'))
 MODEL_PATH = Path(os.getenv('ASCLEPIOS_MODEL_PATH', MODEL_DIR / 'asclepios_model'))
 LORA_PATH = Path(os.getenv('ASCLEPIOS_LORA_PATH', MODEL_DIR / 'asclepios_lora'))
 DATA_DIR = Path(os.getenv('ASCLEPIOS_DATA_DIR', ROOT_DIR / 'data'))
+ENABLE_LOCAL_MODEL = os.getenv('ASCLEPIOS_ENABLE_MODEL', 'true').lower() in {
+    '1', 'true', 'yes', 'on'
+}
 
 
 def fallback_reply(message: str) -> str:
     lowered = message.lower()
+    has_stomach_ache = bool(re.search(r'st\w*omach', lowered))
+    has_headache = bool(re.search(r'head\w*ache', lowered))
 
-    if re.search(r'st\w*omach', lowered):
+    if has_stomach_ache and has_headache:
+        return (
+            "A mild stomach ache with a headache can happen with dehydration, a viral "
+            "illness, or not eating enough, but the cause cannot be confirmed here. "
+            "Sip water or an oral rehydration drink, eat small bland meals, rest, and "
+            "avoid alcohol and greasy food. Follow the label before taking any medicine, "
+            "and avoid ibuprofen if you have stomach pain, vomiting, ulcers, kidney "
+            "problems, or are pregnant. Contact a clinician if it is not improving within "
+            "24 hours or lasts more than 48 hours. Seek urgent care for a sudden severe "
+            "headache, stiff neck with fever, confusion, fainting, weakness, vision or "
+            "speech changes, repeated vomiting, severe or worsening abdominal pain, blood "
+            "in vomit or stool, or signs of dehydration. When did each symptom start, and "
+            "have you had fever, vomiting, or diarrhea?"
+        )
+
+    if has_headache:
+        return (
+            "For a mild headache, drink water, eat if you have not eaten recently, rest "
+            "in a quiet dim room, and take a break from screens. If you use an over-the-"
+            "counter pain reliever, follow its label and do not combine products with the "
+            "same ingredient. Contact a clinician if it is not improving after another "
+            "24 hours, lasts more than a few days, or keeps returning. Seek urgent care "
+            "for a sudden worst-ever headache, weakness or numbness, confusion, fainting, "
+            "vision or speech changes, stiff neck with fever, repeated vomiting, a recent "
+            "head injury, or rapidly worsening pain. Where is the pain, and do you have "
+            "fever, vomiting, vision changes, or weakness?"
+        )
+
+    if has_stomach_ache:
         return (
             "For a mild stomach ache, sip water, eat small bland meals, and avoid "
             "alcohol, greasy food, and medicines such as ibuprofen until you know "
@@ -40,6 +73,9 @@ def fallback_reply(message: str) -> str:
 
 def load_model_reply(message: str) -> str:
     """Try to use the trained model if available; otherwise fall back to a safe assistant reply."""
+    if not ENABLE_LOCAL_MODEL:
+        return fallback_reply(message)
+
     try:
         import sys
 
@@ -48,23 +84,16 @@ def load_model_reply(message: str) -> str:
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
 
-        from src.model.asclepios_model import get_model_response, load_model_with_fallback
+        from src.model.asclepios_model import get_model_and_tokenizer, get_model_response
 
-        candidate_paths = [
-            MODEL_PATH,
-            LORA_PATH,
-            model_dir / "asclepios_model",
-            model_dir / "asclepios_lora",
-            ROOT_DIR / "src" / "model",
-        ]
+        candidate_paths = [path for path in (MODEL_PATH, LORA_PATH) if path.exists()]
 
         for path in candidate_paths:
-            if path.exists():
-                try:
-                    model, tokenizer = load_model_with_fallback(str(path), str(ROOT_DIR / "src" / "model"))
-                    return get_model_response(model, tokenizer, message)
-                except Exception:
-                    continue
+            try:
+                model, tokenizer = get_model_and_tokenizer(str(path))
+                return get_model_response(model, tokenizer, message)
+            except Exception:
+                continue
 
         return fallback_reply(message)
     except Exception:

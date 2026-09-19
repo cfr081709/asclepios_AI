@@ -1,15 +1,22 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 8000);
+const MODEL_PORT = Number(process.env.ASCLEPIOS_MODEL_PORT || 8001);
 const APP_ROOT = __dirname;
 const PUBLIC_DIR = APP_ROOT;
 
-const CRISIS_KEYWORDS = [
-  'suicide', 'kill myself', 'want to die', 'end my life', 'hurt myself',
-  'self harm', 'self-harm', 'cant go on', 'can\'t go on'
-];
+const pythonProcess = spawn(
+  process.env.PYTHON || 'python3',
+  ['src/app/server.py'],
+  {
+    cwd: path.resolve(APP_ROOT, '..', '..'),
+    env: { ...process.env, PORT: String(MODEL_PORT) },
+    stdio: 'inherit'
+  }
+);
 
 function sendJson(res, statusCode, payload) {
   res.writeHead(statusCode, {
@@ -24,43 +31,6 @@ function sendJson(res, statusCode, payload) {
 function sanitizeMessage(raw) {
   if (typeof raw !== 'string') return '';
   return raw.trim().replace(/\s+/g, ' ');
-}
-
-function containsCrisisLanguage(message) {
-  const lower = message.toLowerCase();
-  return CRISIS_KEYWORDS.some((item) => lower.includes(item));
-}
-
-function safeGeneralReply(message) {
-  const lower = message.toLowerCase();
-
-  if (lower.includes('pain') || lower.includes('headache') || lower.includes('chest pain')) {
-    return 'I can provide general health information, but not diagnosis. If your pain is severe, sudden, or you feel unwell, please get urgent medical care or call emergency services.';
-  }
-
-  if (lower.includes('fever') || lower.includes('cough') || lower.includes('flu') || lower.includes('cold')) {
-    return 'For general symptom questions, rest, hydration, and monitoring are helpful. Seek medical advice if symptoms are severe, worsening, or last more than a few days.';
-  }
-
-  if (lower.includes('medication') || lower.includes('prescription') || lower.includes('medicine')) {
-    return 'Medication guidance should be personalized to your medical history. Please check with a clinician or pharmacist before starting or changing a treatment.';
-  }
-
-  return 'I can share general wellness information, but I cannot diagnose medical conditions or replace a doctor. If your symptoms feel serious or worsening, please contact a healthcare professional.';
-}
-
-function generateMedicalReply(message) {
-  const clean = sanitizeMessage(message);
-
-  if (!clean) {
-    return 'Please share the health question or symptom you want help with.';
-  }
-
-  if (containsCrisisLanguage(clean)) {
-    return 'I am really concerned about what you shared. Please contact a crisis line or emergency services right away, or go to the nearest emergency room. In the US, call or text 988 for immediate support.';
-  }
-
-  return safeGeneralReply(clean);
 }
 
 function serveFile(res, filePath) {
@@ -99,20 +69,37 @@ function handleApiChat(req, res) {
 
   req.on('end', () => {
     try {
-      const data = body ? JSON.parse(body) : {};
-      const message = sanitizeMessage(data.message || data.prompt || '');
+      const proxyRequest = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: MODEL_PORT,
+          path: '/api/chat',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(body)
+          }
+        },
+        (proxyResponse) => {
+          let responseBody = '';
+          proxyResponse.setEncoding('utf8');
+          proxyResponse.on('data', (chunk) => { responseBody += chunk; });
+          proxyResponse.on('end', () => {
+            res.writeHead(proxyResponse.statusCode || 502, {
+              'Content-Type': 'application/json; charset=utf-8',
+              'Access-Control-Allow-Origin': '*'
+            });
+            res.end(responseBody);
+          });
+        }
+      );
 
-      if (!message) {
-        sendJson(res, 400, { error: 'Please provide a message.' });
-        return;
-      }
-
-      const reply = generateMedicalReply(message);
-      sendJson(res, 200, {
-        reply,
-        model: 'Asclepios AI fallback assistant',
-        safe: true
+      proxyRequest.on('error', () => {
+        sendJson(res, 503, {
+          error: 'The Python model service is unavailable.'
+        });
       });
+      proxyRequest.end(body);
     } catch (error) {
       sendJson(res, 400, { error: 'Invalid JSON body.' });
     }
@@ -175,4 +162,10 @@ server.listen(PORT, () => {
   console.log(`Asclepios AI backend is running at http://localhost:${PORT}`);
 });
 
-module.exports = { generateMedicalReply, containsCrisisLanguage };
+function shutdown() {
+  pythonProcess.kill();
+  process.exit();
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

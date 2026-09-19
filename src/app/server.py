@@ -14,6 +14,30 @@ LORA_PATH = Path(os.getenv('ASCLEPIOS_LORA_PATH', MODEL_DIR / 'asclepios_lora'))
 DATA_DIR = Path(os.getenv('ASCLEPIOS_DATA_DIR', ROOT_DIR / 'data'))
 
 
+def fallback_reply(message: str) -> str:
+    lowered = message.lower()
+
+    if re.search(r'st\w*omach', lowered):
+        return (
+            "For a mild stomach ache, sip water, eat small bland meals, and avoid "
+            "alcohol, greasy food, and medicines such as ibuprofen until you know "
+            "what is causing it. If it is not improving within 24 to 48 hours, or "
+            "keeps returning, contact a clinician. Seek urgent care now for severe "
+            "or worsening pain, a rigid or swollen abdomen, repeated vomiting, "
+            "blood in vomit or stool, black stool, fainting, fever with severe pain, "
+            "or pain concentrated in the lower right abdomen. How long has it been "
+            "going on, and where is the pain located?"
+        )
+
+    return (
+        "I can give general information, but I need more detail to make the answer "
+        "useful. Please include the main symptom or question, when it started, how "
+        "severe it is, and anything that makes it better or worse. Seek urgent care "
+        "now for trouble breathing, chest pressure, sudden weakness, confusion, "
+        "severe bleeding, or a rapidly worsening condition."
+    )
+
+
 def load_model_reply(message: str) -> str:
     """Try to use the trained model if available; otherwise fall back to a safe assistant reply."""
     try:
@@ -42,15 +66,9 @@ def load_model_reply(message: str) -> str:
                 except Exception:
                     continue
 
-        return (
-            "I can provide general health information, but I cannot diagnose conditions or replace a clinician. "
-            "If your symptoms are severe, worsening, or urgent, please seek professional medical care."
-        )
+        return fallback_reply(message)
     except Exception:
-        return (
-            "I can provide general health information, but I cannot diagnose conditions or replace a clinician. "
-            "If your symptoms are severe, worsening, or urgent, please seek professional medical care."
-        )
+        return fallback_reply(message)
 
 
 def handle_chat_message(message: str) -> dict:

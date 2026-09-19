@@ -72,6 +72,7 @@ export ASCLEPIOS_MODEL_PATH="$PWD/models/asclepios_model"
 export ASCLEPIOS_LORA_PATH="$PWD/models/asclepios_lora"
 export ASCLEPIOS_DATA_DIR="$PWD/data"
 export PORT=8000
+export ASCLEPIOS_MODEL_PORT=8001
 ```
 
 A sample file is included at `.env.example`.
@@ -81,14 +82,18 @@ A sample file is included at `.env.example`.
 ```bash
 cd /path/to/asclepios_AI
 source .venv/bin/activate
-python src/app/server.py
+node src/app/server.js
 ```
 
-Then open the app in a browser:
+Open the app at the single public URL:
 
 ```text
 http://localhost:8000
 ```
+
+The Node server owns port `8000` and starts the Python model service on internal
+port `8001`. Do not open the model-service port directly. Run `server.py` alone
+only when debugging the Python service; it defaults to port `8000`.
 
 ## Notes
 
